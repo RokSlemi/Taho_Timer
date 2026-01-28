@@ -29,7 +29,7 @@
       </div>
     </div>
     <div style="height:12px"></div>
-    <div class="small">Prvih 32s: rdeče • naslednjih 25s: zeleno • zadnje 3s: rdeče<br>Časovni pas: UTC+2 (fiksno)</div>
+    <div class="small">Prvih 32s: rdeče • naslednjih 25s: zeleno • zadnje 3s: rdeče<br>Časovni pas: UTC+2 (fiksno) • zamik: +2s</div>
   </div>
 
   <div class="controls">
@@ -45,6 +45,10 @@
       {name: 'RED', color: '#cc1f1f', duration: 3}
     ];
 
+    // ✅ Timer offset relative to UTC+2 (in seconds)
+    // This keeps the cycle 60s long, but shifts it by 2 seconds.
+    const OFFSET_SECONDS = 2;
+
     // compute cumulative boundaries for quick checks
     const boundaries = [];
     let acc = 0;
@@ -56,15 +60,15 @@
     const phaseEl = document.getElementById('phase');
     const ringEl = document.getElementById('ring');
 
-    const START_DELAY = 2; // zamik v sekundah
-
     // Wake lock handling (optional, user can enable)
     let wakeLock = null;
     async function tryWakeLock() {
       try {
         if ('wakeLock' in navigator) {
           wakeLock = await navigator.wakeLock.request('screen');
-          wakeLock.addEventListener('release', () => { document.getElementById('wake').textContent = 'Wake lock'; });
+          wakeLock.addEventListener('release', () => {
+            document.getElementById('wake').textContent = 'Wake lock';
+          });
           document.getElementById('wake').textContent = 'Wake on';
         } else {
           alert('Wake Lock ni podprt v tem brskalniku.');
@@ -91,35 +95,37 @@
       return new Date(tzMs);
     }
 
-    function formatNumber(n, digits=0) {
-      return n.toFixed(digits).padStart(digits? (3+digits):2,'0');
-    }
-
     function update() {
       const t = nowUTCplus2();
-      let s = t.getSeconds() + t.getMilliseconds() / 1000;
-      s = (s - START_DELAY + 60) % 60; // 2s delay
 
+      // base seconds within minute
+      let s = t.getSeconds() + t.getMilliseconds() / 1000; // 0.000 - 59.999
+
+      // ✅ apply +2s offset to the timer (cycle stays 60s)
+      // Meaning: timer "minute" starts at xx:xx:02 (UTC+2).
+      s = (s - OFFSET_SECONDS + 60) % 60;
+
+      // determine phase index
       let phaseIndex = 0;
       for (let i=0;i<boundaries.length;i++){
         if (s < boundaries[i]){ phaseIndex = i; break; }
       }
       const phase = PHASES[phaseIndex];
+
       // compute time left in this phase
-      const phaseStart = (phaseIndex === 0) ? 0 : boundaries[phaseIndex-1];
       const phaseEnd = boundaries[phaseIndex];
       const left = Math.max(0, phaseEnd - s);
 
       // update UI
       ringEl.style.background = phase.color;
       labelEl.textContent = phase.name === 'RED' ? 'RDEČE' : 'ZELENO';
+
       // show seconds with one decimal place
       secsEl.textContent = left.toFixed(1).padStart(4,'0');
-      phaseEl.textContent = `Faza ${phaseIndex+1} · ${phase.duration}s (UTC+2)`;
+      phaseEl.textContent = `Faza ${phaseIndex+1} · ${phase.duration}s (UTC+2) · zamik +${OFFSET_SECONDS}s`;
 
       // adjust text colour for contrast
-      const lightText = (phase.name === 'GREEN') ? '#fff' : '#fff';
-      document.body.style.color = lightText;
+      document.body.style.color = '#fff';
     }
 
     // Start updates. Use requestAnimationFrame loop tuned to ~100ms updates for balance.
@@ -141,7 +147,10 @@
 
     // friendly hint: tap anywhere to toggle fullscreen (mobile)
     ringEl.addEventListener('click', async ()=>{
-      try{ if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); else await document.exitFullscreen(); }catch(e){}
+      try{
+        if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+        else await document.exitFullscreen();
+      }catch(e){}
     });
 
     // initial update
