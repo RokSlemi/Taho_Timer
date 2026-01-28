@@ -56,6 +56,8 @@
     const phaseEl = document.getElementById('phase');
     const ringEl = document.getElementById('ring');
 
+    const START_DELAY = 2; // zamik v sekundah
+
     // Wake lock handling (optional, user can enable)
     let wakeLock = null;
     async function tryWakeLock() {
@@ -95,8 +97,9 @@
 
     function update() {
       const t = nowUTCplus2();
-      const s = t.getSeconds() + t.getMilliseconds() / 1000; // 0.000 - 59.999
-      // determine phase index
+      let s = t.getSeconds() + t.getMilliseconds() / 1000;
+      s = (s - START_DELAY + 60) % 60; // 2s delay
+
       let phaseIndex = 0;
       for (let i=0;i<boundaries.length;i++){
         if (s < boundaries[i]){ phaseIndex = i; break; }
